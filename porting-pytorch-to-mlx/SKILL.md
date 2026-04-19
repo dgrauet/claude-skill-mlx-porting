@@ -45,6 +45,7 @@ Before writing any MLX code, read the PyTorch source with a skeptical eye for th
 - [ ] **Weight layout** — PyTorch Conv is `(O, I, *K)`, MLX is `(O, *K, I)`. Linear is identical. Embedding is identical. Conv transpose has its own rule.
 - [ ] **Normalization semantics** — RMSNorm, GroupNorm, LayerNorm have different default epsilons across frameworks. AdaLN variants differ (additive-only vs `x*(1+scale)+shift`).
 - [ ] **Non-obvious flags** — `qk_norm`, `pre_norm`, `use_bias`, `cross_attention_dim`, activation choice (GEGLU vs SwiGLU vs GELU). Cross-check against config, not defaults.
+- [ ] **Checkerboard trap (the recurring one)** — if the end-to-end image comes out as periodic noise at stride 2/4/8/16, the culprit is almost always (in order): `mx.tile` used where `mx.repeat` was needed, pixel-shuffle axis order, text-encoder `hidden_states[-2]` applying N instead of N-1 layers, or scheduler dtype leaking fp32 into a bf16 DiT. See pitfall #7 for the 3-test diagnostic procedure — run it BEFORE shipping every port.
 
 If any of these apply, open `references/common-pitfalls.md` and `references/attention-patterns.md` and follow the detailed guidance before writing the MLX code.
 
@@ -135,6 +136,8 @@ def test_attention_parity():
 Tests should treat PyTorch as an **optional dev dependency** (`pip install -e ".[parity]"`) so end users installing the `-mlx` fork don't need to pull torch.
 
 Complementary invariant tests (what `mlx-arsenal` uses internally) are useful but **do not replace** PT↔MLX parity — they only catch self-consistency bugs.
+
+**Important caveat — parity at small scale is necessary but not sufficient.** Tests with `hidden=256, num_layers=2` and random weights miss bugs that only trigger at production scale (bf16 precision accumulating over 36 layers, RoPE with real position distributions, text conditioning at trained magnitudes). Add an **end-to-end noise-path smoke test** — decode random Gaussian through the full post-DiT chain (BN inverse → unpatch → VAE.decode) — to the smoke suite. If that output has any periodic pattern, one of those spatial ops is broken at the production config, regardless of what the layer-level parity tests say. See pitfall #7 in `common-pitfalls.md` for the three-test diagnostic.
 
 ## Step 6 — End-to-end validation
 

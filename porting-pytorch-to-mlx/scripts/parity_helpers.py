@@ -160,3 +160,65 @@ def tensor_stats(name: str, t) -> dict:
         "std": float(arr.std()),
         "abs_sum": float(np.abs(arr).sum()),
     }
+
+
+# ---------------------------------------------------------------------------
+# Checkerboard diagnostic helpers — for post-port sanity checks.
+# See common-pitfalls.md #7.
+# ---------------------------------------------------------------------------
+
+
+def detect_checkerboard(image_np: np.ndarray, max_period: int = 32) -> dict:
+    """Return periodicity statistics for an image (H, W, C) float array.
+
+    If the output contains a spatial checkerboard at stride `p`, the
+    autocorrelation at offset `p` will be unusually high relative to offsets
+    `p-1` and `p+1`. Computes a cheap 1D proxy (average autocorrelation over
+    rows and channels) and returns the strongest period under `max_period`.
+
+    Use in smoke tests: `assert detect_checkerboard(img)["strongest_period"] is None`.
+    """
+    if image_np.ndim == 4:
+        image_np = image_np[0]  # drop batch
+    if image_np.ndim == 3 and image_np.shape[-1] in (1, 3, 4):
+        gray = image_np.mean(axis=-1)
+    else:
+        gray = image_np
+    H, W = gray.shape[-2:]
+    row_mean = gray - gray.mean(axis=-1, keepdims=True)
+    acf = np.zeros(min(max_period, W // 2) + 1)
+    for tau in range(len(acf)):
+        if tau == 0:
+            acf[0] = 1.0
+        else:
+            a = row_mean[..., :-tau]
+            b = row_mean[..., tau:]
+            num = (a * b).mean()
+            den = (row_mean**2).mean() + 1e-12
+            acf[tau] = float(num / den)
+    # Any offset with autocorrelation > 0.3 and a clear local max vs neighbours
+    # is suspicious.
+    suspicious = []
+    for tau in range(2, len(acf) - 1):
+        if acf[tau] > 0.3 and acf[tau] > acf[tau - 1] and acf[tau] > acf[tau + 1]:
+            suspicious.append((tau, float(acf[tau])))
+    suspicious.sort(key=lambda x: -x[1])
+    return {
+        "autocorrelation": acf.tolist(),
+        "suspicious_periods": suspicious,
+        "strongest_period": suspicious[0][0] if suspicious else None,
+    }
+
+
+def noise_decode_check(vae_decode_fn, latent_shape: tuple, seed: int = 0) -> "np.ndarray":
+    """Decode a standard-normal latent through ``vae_decode_fn`` and return the
+    image as a numpy array. Pair with ``detect_checkerboard`` to assert a
+    smooth output on noise — any periodicity on noise input means the spatial
+    operators in the decoder are broken, independent of model weights.
+    """
+    import mlx.core as mx
+
+    mx.random.seed(seed)
+    z = mx.random.normal(latent_shape) * 2.0
+    img = vae_decode_fn(z)
+    return mx_to_np(img)

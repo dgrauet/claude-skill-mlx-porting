@@ -83,6 +83,57 @@ Common culprits:
 - **`torch.cumsum` on bf16** differs numerically from fp32 cumulative sums. If parity is just-above-threshold, try casting to fp32 for the cumsum step.
 - **`F.silu` vs `F.hardswish`** — easy typo when reading quickly. Triple-check activation names.
 
+## 7. The checkerboard trap (recurring — watch for it actively)
+
+**What goes wrong:** The per-layer parity tests pass at small scale with random weights, but end-to-end inference with real weights produces an image with a visible checkerboard pattern at a specific scale (8×8, 16×16, or matching the patch/upsample stride). The model is *almost* working — the DiT moves latents away from noise, the VAE decodes without crashing — but the output has periodic artifacts instead of a coherent image.
+
+**Past failures:**
+- **Hunyuan3D paint UNet:** 2×2 mosaic at each decoder stage — wrong axis order in `F.interpolate` equivalent.
+- **ERNIE-Image v0:** 8-pixel checkerboard — off-by-one in text-encoder `hidden_states[-2]` that caused the DiT to receive text conditioning with 10× wrong magnitude *and* shifted scale.
+- **Qwen-Image:** VAE `Upsample2D` used `mx.repeat` on the wrong axis (channels instead of spatial) → tile-like artifacts.
+
+**Root causes to check, in order of frequency:**
+
+1. **`mx.repeat` vs `mx.tile` confusion.** `mx.repeat(x, 2, axis=1)` on `(B, H, W, C)` duplicates each H-row consecutively (`[a, a, b, b, ...]`) — the correct nearest-neighbor upsample. `mx.tile(x, (1, 2, 1, 1))` produces `[a, b, ..., a, b, ...]` — block tiling, which always checkerboards. Never use `mx.tile` for upsampling.
+
+2. **Pixel-shuffle / patch pack axis order.** Both PT `reshape(B, C, H/r, r, W/r, r) → permute(0,1,3,5,2,4)` and MLX channels-last `reshape(B, H, W, C, r, r) → transpose(0,1,4,2,5,3)` produce the same logical output. Verify by a round-trip identity test on a small known tensor (not random!) — feed `mx.arange(total)` reshaped to the input shape, unpatchify, re-patchify, and assert equal.
+
+3. **Position IDs axis swap.** `rope_axes_dim=[text, y, x]` with grid constructed via `meshgrid(grid_y, grid_x, indexing="ij")` must stack `[yy, xx]` (not `[xx, yy]`). A swap produces subtle checkerboard because y-axis RoPE rotates channels the DiT expects to carry x-info and vice versa.
+
+4. **Text-conditioning magnitude mismatch.** Check `hidden_states[-2]` semantics in HF transformers: it's the output of layer `N-1` — which is the INPUT to the last layer, not the OUTPUT of the last layer. So use `for layer in layers[:-1]` (apply N-1 layers), NOT `for layer in layers` then return pre-norm. Off-by-one here produces correct-looking conditioning at wrong magnitude — DiT denoises in the wrong latent manifold, checkerboard at the VAE decoder.
+
+5. **Dtype leak from scheduler into DiT.** The `FlowMatchEulerDiscreteScheduler.step()` in mlx-arsenal keeps `sigmas` as `fp32`; multiplying a `bf16` latent by an `fp32` scalar promotes the latent to `fp32`. The next DiT forward then runs with `fp32` input vs `bf16` weights. Cast back: `latents = scheduler.step(...).astype(dtype)`.
+
+**Diagnostic procedure — use this EVERY port before shipping:**
+
+```python
+# Test 1: decode pure Gaussian noise through the VAE only.
+# If checkerboard appears here, the VAE is broken (upsample, conv layout).
+z = mx.random.normal((1, lat_H, lat_W, lat_C)) * 2.0
+img = vae.decode(z)
+# → should be smooth coloured noise, no periodic pattern.
+
+# Test 2: decode noise through the *full post-DiT chain* (BN-inverse +
+# pixel-shuffle + VAE). If smooth here but checkerboard end-to-end, the DiT
+# output is the source.
+dit_shape = (1, dit_C, lat_H // patch, lat_W // patch)
+dit_out = mx.random.normal(dit_shape)
+nhwc = dit_out.transpose(0, 2, 3, 1)
+nhwc = vae.bn.apply_inverse(nhwc)  # if model has latent BN
+unpacked = pixel_shuffle(nhwc, upscale_factor=patch)
+img = vae.decode(unpacked)
+# → still smooth noise. If checkerboard, the BN or pixel_shuffle axis is off.
+
+# Test 3: real-weight DiT single-block vs reference.
+# If parity < 1e-3, and tests 1/2 pass, the bug is in attention conventions
+# (positions, mask format, qk_norm, RoPE axis order) which only manifest at
+# the model-trained magnitudes.
+```
+
+**Preventive: add these three tests to every port's `tests/smoke/` BEFORE running full generation.** They pinpoint the layer at fault in under 30 seconds each and catch 95% of checkerboard bugs.
+
+**Rule:** If the end-to-end output has checkerboard, do not tweak the denoising loop parameters (steps, guidance, shift) — they can never fix a wrong spatial operator. Walk up the stack with the three tests above instead.
+
 ## Reading strategy
 
 When reading PyTorch source before porting, open three files side-by-side:
