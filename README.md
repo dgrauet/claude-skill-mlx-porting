@@ -25,7 +25,7 @@ Each of these has burned a real port. The skill turns this hard-won knowledge in
 ## What's inside
 
 ```
-porting-pytorch-to-mlx/
+mlx-porting/
 ├── SKILL.md                        # 7-step workflow + six reading-time traps
 ├── references/
 │   ├── mlx-docs.md                 # Curated official MLX URLs (core, nn, fast, quant, WWDC25…)
@@ -46,14 +46,14 @@ porting-pytorch-to-mlx/
 
 ```bash
 git clone https://github.com/dgrauet/claude-skill-mlx-porting.git
-cp -r claude-skill-mlx-porting/porting-pytorch-to-mlx ~/.claude/skills/
+cp -r claude-skill-mlx-porting/mlx-porting ~/.claude/skills/
 ```
 
 Claude Code will pick up the skill on next session.
 
 ### Option 2 — `.skill` package
 
-Drop `porting-pytorch-to-mlx.skill` into Claude Code:
+Drop `mlx-porting.skill` into Claude Code:
 - In Claude Code, use `/skill install <path>` (or the UI skill install flow)
 - Or unpack into `~/.claude/skills/` — `.skill` is a tarball with a manifest
 

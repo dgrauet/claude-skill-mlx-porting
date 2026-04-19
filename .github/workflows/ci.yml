@@ -24,5 +24,5 @@ jobs:
 
       - name: Tarball smoke test (matches release workflow)
         run: |
-          tar czf /tmp/porting-pytorch-to-mlx.skill porting-pytorch-to-mlx
-          ls -lh /tmp/porting-pytorch-to-mlx.skill
+          tar czf /tmp/mlx-porting.skill mlx-porting
+          ls -lh /tmp/mlx-porting.skill

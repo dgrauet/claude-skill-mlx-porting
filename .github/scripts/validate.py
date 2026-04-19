@@ -15,7 +15,7 @@ import re
 import sys
 from pathlib import Path
 
-SKILL_ROOT = Path("porting-pytorch-to-mlx")
+SKILL_ROOT = Path("mlx-porting")
 REQUIRED_FRONTMATTER = ("name", "description")
 REQUIRED_EVAL_KEYS = ("id", "prompt", "expected_output")
 

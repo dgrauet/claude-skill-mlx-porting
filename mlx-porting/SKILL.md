@@ -1,5 +1,5 @@
 ---
-name: porting-pytorch-to-mlx
+name: mlx-porting
 description: Port PyTorch / CUDA diffusion, transformer, LLM, audio, or 3D models to Apple MLX for Apple-Silicon inference. Invoke whenever the user is working on an MLX port — scaffolding a `-mlx` fork, translating attention / RoPE / VAE / norm layers, setting up PyTorch vs MLX parity tests, diagnosing wrong numerics (black images, cyan textures, gray output, garbage tokens, shape-safe silent failures), picking `mlx.fast` primitives, choosing quant scope, or routing weight-conversion work through the `mlx-recipe` skill (still in-scope here). Trigger phrasings include "port to MLX", "MLX port", "MLX-ify", "mlx-forge recipe", "-mlx fork", "MLX parity", "diffusers to MLX", and any mention of `mlx-arsenal`, `mlx.fast.*`, or converting diffusers/transformers code to MLX. Invoke eagerly — MLX ports fail silently (head-dim misnomer, QKV interleaving, lazy tensors saved as zeros, defaults diverging from config). Skip for general MLX API questions unrelated to porting, installing MLX, pure CUDA work, or abstract attention math.
 ---
 

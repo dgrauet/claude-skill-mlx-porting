@@ -1,5 +1,5 @@
 {
-  "skill_name": "porting-pytorch-to-mlx",
+  "skill_name": "mlx-porting",
   "evals": [
     {
       "id": 3,

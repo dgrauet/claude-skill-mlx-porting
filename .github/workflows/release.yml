@@ -25,11 +25,11 @@ jobs:
 
       - name: Build .skill tarball
         run: |
-          tar czf porting-pytorch-to-mlx.skill porting-pytorch-to-mlx
-          ls -lh porting-pytorch-to-mlx.skill
+          tar czf mlx-porting.skill mlx-porting
+          ls -lh mlx-porting.skill
 
       - name: Upload to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: porting-pytorch-to-mlx.skill
+          files: mlx-porting.skill
           fail_on_unmatched_files: true
