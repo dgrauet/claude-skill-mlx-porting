@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate skill structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run validation script
+        run: python3 .github/scripts/validate.py
+
+      - name: Tarball smoke test (matches release workflow)
+        run: |
+          tar czf /tmp/porting-pytorch-to-mlx.skill porting-pytorch-to-mlx
+          ls -lh /tmp/porting-pytorch-to-mlx.skill

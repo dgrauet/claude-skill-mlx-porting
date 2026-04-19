@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-attach:
+    name: Build .skill and attach to release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate skill before packaging
+        run: python3 .github/scripts/validate.py
+
+      - name: Build .skill tarball
+        run: |
+          tar czf porting-pytorch-to-mlx.skill porting-pytorch-to-mlx
+          ls -lh porting-pytorch-to-mlx.skill
+
+      - name: Upload to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: porting-pytorch-to-mlx.skill
+          fail_on_unmatched_files: true

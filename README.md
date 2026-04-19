@@ -1,5 +1,6 @@
 # claude-skill-mlx-porting
 
+[![CI](https://github.com/dgrauet/claude-skill-mlx-porting/actions/workflows/ci.yml/badge.svg)](https://github.com/dgrauet/claude-skill-mlx-porting/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/github/license/dgrauet/claude-skill-mlx-porting)](./LICENSE)
 [![Release](https://img.shields.io/github/v/release/dgrauet/claude-skill-mlx-porting)](https://github.com/dgrauet/claude-skill-mlx-porting/releases)
 [![Last commit](https://img.shields.io/github/last-commit/dgrauet/claude-skill-mlx-porting)](https://github.com/dgrauet/claude-skill-mlx-porting/commits/main)
