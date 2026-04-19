@@ -1,5 +1,10 @@
 # claude-skill-mlx-porting
 
+[![License: MIT](https://img.shields.io/github/license/dgrauet/claude-skill-mlx-porting)](./LICENSE)
+[![Release](https://img.shields.io/github/v/release/dgrauet/claude-skill-mlx-porting)](https://github.com/dgrauet/claude-skill-mlx-porting/releases)
+[![Last commit](https://img.shields.io/github/last-commit/dgrauet/claude-skill-mlx-porting)](https://github.com/dgrauet/claude-skill-mlx-porting/commits/main)
+[![Triggering accuracy](https://img.shields.io/badge/triggering-100%25-brightgreen)](#measured-performance)
+
 A [Claude Code skill](https://docs.claude.com/en/docs/claude-code/skills) that captures the end-to-end workflow for **porting PyTorch / CUDA models to Apple MLX** for inference on Apple Silicon. It distills the pitfalls, conventions, and reusable helpers accumulated across ~10 production MLX ports (LTX-2, Hunyuan3D-2.1, CogVideoX-Fun, Matrix-Game, Mistral-Small, Qwen Image, and others).
 
 When installed, Claude automatically invokes the skill whenever you start working on an MLX port — scaffolding a new `-mlx` fork, translating attention / RoPE / VAE layers, setting up PyTorch↔MLX parity tests, or diagnosing wrong numerics.
