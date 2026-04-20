@@ -134,6 +134,31 @@ img = vae.decode(unpacked)
 
 **Rule:** If the end-to-end output has checkerboard, do not tweak the denoising loop parameters (steps, guidance, shift) — they can never fix a wrong spatial operator. Walk up the stack with the three tests above instead.
 
+## 8. Tekken / Pixtral tokenizer skips the BOS
+
+**What goes wrong:** When wiring an `mlx-lm` Mistral-family text encoder (Ministral3, Mistral Small 3, Pixtral) to a diffusion DiT, you tokenize with `add_special_tokens=True` expecting `<s>` at position 0 — and it silently does NOT get added. Every content token is fine, but the FIRST token enters the attention stack at an out-of-distribution magnitude, compounds layer by layer, and the DiT receives conditioning that's correct everywhere except position 0. End-to-end generation produces a structured-but-incoherent image (barely-visible features buried in noise).
+
+**Past failure (ERNIE-Image port, 2026-04-20):** `mistral-community/pixtral-12b` tokenizer bundled as the runtime tokenizer. Layer-by-layer diff between `mlx_lm.models.ministral3.Model` and `transformers.Ministral3Model` on identical input_ids:
+
+| layer | token-0 max_abs | token-1..N max_abs |
+|---|---|---|
+| 0-1 | 0.003 | 0.005 |
+| 2   | 4.18  | 0.004 |
+| 3-25 | 4-7 | 0.02-0.07 |
+
+Token-0 is 100× off from every other position and grows across the stack. Fix is prepending `tokenizer.bos_token_id` before the first content token. Once done, the content tokens 1..N keep their same (tiny) divergence and the DiT receives correct conditioning in the positions it actually uses.
+
+**Rule:** In your pipeline's `_tokenize` / `encode_prompt` helper:
+
+```python
+ids = tokenizer(prompt, add_special_tokens=True, ...)["input_ids"]
+bos = tokenizer.bos_token_id or 1
+if not ids or ids[0] != bos:
+    ids = [bos] + ids
+```
+
+Do this for every Tekken-family tokenizer, not just Pixtral. `add_special_tokens=True` is an identity op for these backends even though the argument name suggests otherwise.
+
 ## Reading strategy
 
 When reading PyTorch source before porting, open three files side-by-side:
