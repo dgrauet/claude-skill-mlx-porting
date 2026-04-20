@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the `porting-pytorch-to-mlx` skill structure.
+"""Validate the `mlx-porting` skill structure.
 
 Ran by the CI workflow on every push and PR. Fails with a non-zero exit code
 and a readable message when anything is off. Also runnable locally:
