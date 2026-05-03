@@ -26,3 +26,18 @@ jobs:
         run: |
           tar czf /tmp/mlx-porting.skill mlx-porting
           ls -lh /tmp/mlx-porting.skill
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Suzerain audit
+        run: uvx suzerain audit . --severity=required
+
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: wagoid/commitlint-github-action@v6
