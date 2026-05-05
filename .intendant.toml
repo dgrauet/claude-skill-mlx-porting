@@ -1,6 +1,6 @@
-[suzerain]
+[intendant]
 version = "1"
 stack = "auto"
-mode = "advisory"
+enforcement = "advisory"
 
 [exemptions]

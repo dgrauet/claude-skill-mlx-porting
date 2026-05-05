@@ -31,8 +31,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Suzerain audit
-        run: uvx suzerain audit . --severity=required
+      - name: Intendant audit
+        run: uvx intendant audit . --severity=required
 
   commitlint:
     runs-on: ubuntu-latest
