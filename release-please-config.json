@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "packages": {
+    ".": {
+      "package-name": "claude-skill-mlx-porting",
+      "include-component-in-tag": false
+    }
+  },
+  "pull-request-title-pattern": "chore: release ${version}",
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "docs", "section": "Documentation" },
+    { "type": "chore", "section": "Chores", "hidden": true },
+    { "type": "ci", "section": "CI", "hidden": true },
+    { "type": "test", "section": "Tests", "hidden": true },
+    { "type": "refactor", "section": "Refactoring", "hidden": true }
+  ]
+}
