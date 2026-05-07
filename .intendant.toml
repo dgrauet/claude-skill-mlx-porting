@@ -4,3 +4,4 @@ stack = "auto"
 enforcement = "advisory"
 
 [exemptions]
+RL002 = { reason = "Root commit predates conventional-commits adoption; rewriting history would orphan v1/v2 tags and require force-push to protected main." }
