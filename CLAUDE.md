@@ -34,6 +34,18 @@ uvx intendant audit . --severity=required    # Run governance audit (matches CI)
 pre-commit run --all-files                   # Run hooks (trailing whitespace, gitleaks, etc.)
 ```
 
+## Branching workflow
+
+`main` is protected: direct pushes are blocked, and `validate` + `commitlint` CI checks must pass before merge. All changes go through a PR (0 approvals required, but CI is mandatory and admins are not exempt).
+
+```bash
+git checkout -b <type>/<topic>          # e.g. feat/new-pitfall, docs/clarify-step-5
+# ...edit, commit with conventional commits...
+git push -u origin <branch>
+gh pr create --fill
+gh pr merge --squash --auto             # auto-merge when CI is green
+```
+
 ## Release workflow
 
 - Tag-driven: pushing `vX.Y.Z` triggers `.github/workflows/release.yml`, which validates, builds `mlx-porting.skill`, and attaches it to the GitHub release.

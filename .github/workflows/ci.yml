@@ -32,7 +32,7 @@ jobs:
           enable-cache: true
 
       - name: Intendant audit
-        run: uvx intendant audit . --severity=required
+        run: uvx --from git+https://github.com/dgrauet/intendant intendant audit . --severity=required
 
   commitlint:
     runs-on: ubuntu-latest
