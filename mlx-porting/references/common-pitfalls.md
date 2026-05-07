@@ -159,6 +159,30 @@ if not ids or ids[0] != bos:
 
 Do this for every Tekken-family tokenizer, not just Pixtral. `add_special_tokens=True` is an identity op for these backends even though the argument name suggests otherwise.
 
+## 9. Structural drift from the reference repo (the `ltx-2-mlx` lesson)
+
+**Symptom:** the port "works" on simple paths (e.g. T2V) but subtle bugs on adjacent pipelines (keyframe, image-to-video, multi-stage) take hours to track because the MLX code no longer maps 1:1 to upstream. Every investigation hypothesis costs a round-trip: "is this divergence the bug? prove sematic equivalence first."
+
+**Root causes** observed on `ltx-2-mlx` — all variants of the same anti-pattern (taking the shortcut during translation):
+
+1. **Reordering operations because it's easier to write that way.** Stage 2 noised state was built `noise → cond` with a manual `LatentState` constructor instead of going through upstream's `noise_latent_state(state)` helper which orders `cond → noise`. Numerically equivalent here, but the divergence had to be proven, not assumed.
+2. **Passing arguments upstream leaves at default.** Sigma `num_tokens = F×H×W` was threaded through because "you have to pass the token count somewhere", missing that upstream uses the default `4096`. The port reads as more deliberate than the original.
+3. **Porting against a stale upstream version.** CFG was implemented via a direct `guided_denoise_loop` because the port pre-dated upstream's refactor to `FactoryGuidedDenoiser` + `euler_denoising_loop`. Once upstream evolves, the port diverges further with every sync, and structural drift compounds.
+4. **In-place mutation instead of porting the abstraction.** LoRA was fused in-place between stages because it "worked", instead of porting upstream's pattern of constructing `stage_2 = DiffusionStage(loras=base+distilled)` at init time.
+5. **Flattening abstractions into the pipeline.** Upstream's `DiffusionStage` / `ModalitySpec` / `EulerDiffusionStep.step` / `euler_denoising_loop` decomposition was collapsed into procedural code inline in the pipeline. Shorter to write, but every future upstream commit becomes a 3-way merge instead of a 1:1 sync, and the cohesion that made bugs *localizable in upstream* is lost in the port.
+
+**The right structure** would have been isomorphic:
+- `DiffusionStage` class with `__call__(denoiser, sigmas, noiser, video=ModalitySpec, audio=ModalitySpec)`
+- `ModalitySpec` dataclass with `context, conditionings, noise_scale, initial_latent`
+- `create_noised_state(tools, conditionings, noiser, ..., initial_latent)` orchestrating init → cond → noise in upstream's order
+- `EulerDiffusionStep.step(sample, denoised, sigmas, step_idx)` as the stepper
+- `euler_denoising_loop` looping over it
+- `FactoryGuidedDenoiser` for CFG, not a direct `guided_denoise_loop`
+
+**Diagnostic rule (raise this first, not last):** when chasing a subtle bug in a port, the **first** diagnostic tool is a side-by-side read of the upstream pipeline vs the MLX pipeline — not a numerical parity test. Structural divergences jump out instantly to the eye and eliminate whole classes of hypotheses before any tensor is materialized. Parity tests come second, to confirm that the (now visibly aligned) code actually matches numerically.
+
+**Prevention rule:** during initial translation, if you catch yourself thinking "it's simpler to write it this way" or "I don't need this abstraction" or "I'll just inline it" — stop. That sentence is the drift starting. Port the abstraction verbatim. Note the cleanup idea for a post-parity pass that may never come, and that's fine.
+
 ## Reading strategy
 
 When reading PyTorch source before porting, open three files side-by-side:

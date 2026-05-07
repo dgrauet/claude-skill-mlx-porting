@@ -17,6 +17,17 @@ This skill captures the workflow and pitfalls accumulated across ~10 production 
 
 A port is a **transpose operation**, not a redesign. The reference implementation's config values, algorithmic choices, and numerical behavior are the oracle. Any deviation — "better" defaults, "cleaner" modes, "optimized" schedules — almost always hides a port bug. Match first, optimize later with justification tied to a framework constraint (e.g. Metal command-buffer timeout), not taste.
 
+**Preserve isomorphic structure with the reference repo.** This is a hard rule, not an aesthetic preference — past `ltx-2-mlx` port suffered repeated drift bugs that were costly to track because the MLX code no longer mapped 1:1 to the official source. Concretely:
+
+- **Same file paths and module names** as upstream (`models/transformer.py` → `models/transformer.py`, not `model/dit.py`).
+- **Same class names** (`LTXVideoTransformer3DModel`, not `LTXTransformer` or `DiT`).
+- **Same method names and decomposition** — if upstream has `_split_qkv` + `_apply_rotary` as separate methods, keep them separate. Don't inline, don't merge "while we're at it", don't rename to "be more pythonic".
+- **Same forward-pass call order** with the same intermediate variable names where reasonable. A reader should be able to diff `model.py` (upstream) vs `model_mlx.py` (port) and see only PyTorch↔MLX op substitutions.
+- **Same config / kwargs surface.** No silent renaming (`num_attention_heads` stays `num_attention_heads`, not `n_heads`), no dropping "unused" fields, no adding convenience flags.
+- **Resist refactor temptation.** Even if upstream has dead code, redundant branches, or odd naming — keep them. The cost of refactoring during a port is paid twice: once now (breaks parity diffing) and once forever after (every upstream update becomes a 3-way merge instead of a 1:1 sync).
+
+Refactor only AFTER fp16 parity is locked, end-to-end output matches, and there is a concrete reason (perf, framework constraint). Refactors made during the initial port are how `ltx-2-mlx` accumulated drift that masked real bugs.
+
 If output looks almost-right but subtly off (color tint, slight blur, minor drift), assume port bug, not artifact. Numerical parity with PyTorch at the layer level is the only reliable signal.
 
 ## Workflow
@@ -46,6 +57,7 @@ Before writing any MLX code, read the PyTorch source with a skeptical eye for th
 - [ ] **Normalization semantics** — RMSNorm, GroupNorm, LayerNorm have different default epsilons across frameworks. AdaLN variants differ (additive-only vs `x*(1+scale)+shift`).
 - [ ] **Non-obvious flags** — `qk_norm`, `pre_norm`, `use_bias`, `cross_attention_dim`, activation choice (GEGLU vs SwiGLU vs GELU). Cross-check against config, not defaults.
 - [ ] **Checkerboard trap (the recurring one)** — if the end-to-end image comes out as periodic noise at stride 2/4/8/16, the culprit is almost always (in order): `mx.tile` used where `mx.repeat` was needed, pixel-shuffle axis order, text-encoder `hidden_states[-2]` applying N instead of N-1 layers, or scheduler dtype leaking fp32 into a bf16 DiT. See pitfall #7 for the 3-test diagnostic procedure — run it BEFORE shipping every port.
+- [ ] **Structural drift** — port the upstream pipeline's *abstractions* (Stage classes, ModalitySpec, denoising loops, guided-denoiser factories), not just its tensor ops. Don't reorder operations, don't pass arguments upstream leaves at default, don't inline / flatten / "simplify" — every shortcut becomes a hypothesis to disprove during later debugging. See pitfall #9 (`ltx-2-mlx` lesson) for the 5 concrete drift patterns.
 
 If any of these apply, open `references/common-pitfalls.md` and `references/attention-patterns.md` and follow the detailed guidance before writing the MLX code.
 
