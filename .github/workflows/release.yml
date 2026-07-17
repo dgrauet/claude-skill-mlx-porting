@@ -13,10 +13,10 @@ jobs:
     name: Build .skill and attach to release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
         with:
           python-version: "3.12"
 
@@ -29,7 +29,7 @@ jobs:
           ls -lh mlx-porting.skill
 
       - name: Upload to GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2.6.2
         with:
           files: mlx-porting.skill
           fail_on_unmatched_files: true
