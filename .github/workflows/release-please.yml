@@ -1,0 +1,25 @@
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # Uses the default GITHUB_TOKEN: this repo has no release GitHub App
+      # secrets (unlike mlx-arsenal). Limitation: a PR created with the
+      # default token cannot trigger other workflows (GitHub loop
+      # prevention), so the release PR's required checks stay unrun —
+      # close/reopen the release PR once to trigger them before merging.
+      # Upgrade path: add RELEASE_APP_ID / RELEASE_APP_PRIVATE_KEY secrets
+      # and swap in actions/create-github-app-token like mlx-arsenal.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7  # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
