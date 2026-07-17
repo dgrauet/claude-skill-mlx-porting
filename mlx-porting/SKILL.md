@@ -56,6 +56,7 @@ Before writing any MLX code, read the PyTorch source with a skeptical eye for th
 - [ ] **Weight layout** — PyTorch Conv is `(O, I, *K)`, MLX is `(O, *K, I)`. Linear is identical. Embedding is identical. Conv transpose has its own rule.
 - [ ] **Normalization semantics** — RMSNorm, GroupNorm, LayerNorm have different default epsilons across frameworks. AdaLN variants differ (additive-only vs `x*(1+scale)+shift`).
 - [ ] **Non-obvious flags** — `qk_norm`, `pre_norm`, `use_bias`, `cross_attention_dim`, activation choice (GEGLU vs SwiGLU vs GELU). Cross-check against config, not defaults.
+- [ ] **Runtime dtype policy** — find the reference's *execution* dtype, not just the checkpoint dtype: `torch_dtype=`, `variant='fp16'`, `.half()`, `.to(device, dtype)`, autocast blocks. The port must drive activations in the SAME dtype end-to-end. Record upstream's deliberate fp32 islands (timestep embedding computed fp32 then cast, scheduler internals with `prev_sample.to(model_dtype)` recast, RoPE cos/sin `.float()` then `.to(x.dtype)`) and replicate the cast-back points exactly.
 - [ ] **Checkerboard trap (the recurring one)** — if the end-to-end image comes out as periodic noise at stride 2/4/8/16, the culprit is almost always (in order): `mx.tile` used where `mx.repeat` was needed, pixel-shuffle axis order, text-encoder `hidden_states[-2]` applying N instead of N-1 layers, or scheduler dtype leaking fp32 into a bf16 DiT. See pitfall #7 for the 3-test diagnostic procedure — run it BEFORE shipping every port.
 - [ ] **Structural drift** — port the upstream pipeline's *abstractions* (Stage classes, ModalitySpec, denoising loops, guided-denoiser factories), not just its tensor ops. Don't reorder operations, don't pass arguments upstream leaves at default, don't inline / flatten / "simplify" — every shortcut becomes a hypothesis to disprove during later debugging. See pitfall #9 (`ltx-2-mlx` lesson) for the 5 concrete drift patterns.
 
@@ -156,6 +157,7 @@ Complementary invariant tests (what `mlx-arsenal` uses internally) are useful bu
 Only run after layer-level parity is green.
 
 - Run the full pipeline on a golden input (same seed, same prompt, same image as the PT reference).
+- **Verify kernel dtypes at runtime** (`smeltr record` + op summary, or `MLX_METAL_DEBUG` traces): dominant gemm/attention kernels must be in the reference dtype (`steel_gemm_*_float16_float16`, `steel_attention_float16`). Any `*_float32_float16_*` gemm or `v_copyfloat16float32` in the top ops is a dtype leak — fp16 weights being upcast on every use. Layer parity tests can't catch this (they run fp32 by design), and the output still *looks* correct; the cost is silent (Hunyuan3D-2.1: ~45% of Stage 1 GPU time).
 - Compare output: image PSNR, text BLEU, mesh vertex delta — whatever the modality allows.
 - Log peak memory (`mx.metal.get_peak_memory()`) and per-step wallclock for reference.
 - If output is wrong but every layer parity passed: suspect sampler / scheduler, RNG semantics (MLX `mx.random.normal` is NOT seed-compatible with `torch.randn`), or data preprocessing.
@@ -177,6 +179,7 @@ Lock fp16 parity first. Only then apply quantization.
 - **No in-place mutation**: `x[idx] = y` works but is emulated via copy — don't assume PyTorch's in-place performance characteristics.
 - **bf16 support**: full on M-series GPU; some reductions still fp32 internally.
 - **RNG**: `mx.random` uses a different algorithm than PyTorch. Seeds are not cross-compatible — for parity tests, generate on one side (numpy) and inject on both.
+- **Type promotion is stricter than PyTorch's**: torch treats 0-d tensors and Python scalars as weak (a fp32 scalar sigma × fp16 latents stays fp16), MLX only weakens Python scalars — any fp32 `mx.array` (0-d included) promotes the whole expression to fp32. `mx.zeros`, `mx.ones`, `mx.random.normal`, and `mx.array(np_fp32)` all default to fp32: pass `dtype=` at every activation entry point (latents, preprocessed inputs, normalization stats, routing/one-hot buffers), or the model silently runs fp32 with per-use weight upcasts. Mirror upstream's `.to(dtype)` with `module.set_dtype(dtype)` at load.
 
 See `references/common-pitfalls.md` for a longer list including the six reading-time traps.
 
